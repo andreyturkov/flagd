@@ -12,6 +12,7 @@ type Flag struct {
 	FlagSetId      string          `json:"-"` // not serialized, used only for indexing
 	Priority       int             `json:"-"` // not serialized, used only for indexing
 	State          string          `json:"state"`
+	FlagType       string          `json:"flagType,omitempty"`
 	DefaultVariant string          `json:"defaultVariant"`
 	Variants       map[string]any  `json:"variants"`
 	Targeting      json.RawMessage `json:"targeting,omitempty"`

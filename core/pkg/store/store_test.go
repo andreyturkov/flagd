@@ -485,3 +485,249 @@ func TestQueryMetadata(t *testing.T) {
 	_, metadata, _ = store.Get(context.Background(), "key", &selector)
 	assert.Equal(t, metadata, model.Metadata{"source": otherSource, "flagSetId": nonExistingFlagSetId}, "metadata did not match expected")
 }
+
+func TestUpdateFlags_FlagTypeValidation(t *testing.T) {
+	const source = "source"
+	var sources = []string{source}
+
+	t.Parallel()
+	tests := []struct {
+		name      string
+		newFlags  map[string]model.Flag
+		wantFlags map[string]model.Flag
+	}{
+		{
+			name: "valid boolean flag",
+			newFlags: map[string]model.Flag{
+				"bool-flag": {
+					FlagType: "boolean",
+					Variants: map[string]any{
+						"on":  true,
+						"off": false,
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{
+				"bool-flag": {
+					Key:       "bool-flag",
+					Source:    source,
+					Priority:  0,
+					FlagSetId: nilFlagSetId,
+					FlagType:  "boolean",
+					Variants: map[string]any{
+						"on":  true,
+						"off": false,
+					},
+					DefaultVariant: "on",
+				},
+			},
+		},
+		{
+			name: "invalid boolean flag",
+			newFlags: map[string]model.Flag{
+				"invalid-bool-flag": {
+					FlagType: "boolean",
+					Variants: map[string]any{
+						"on":  "true",
+						"off": false,
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{},
+		},
+		{
+			name: "valid string flag",
+			newFlags: map[string]model.Flag{
+				"string-flag": {
+					FlagType: "string",
+					Variants: map[string]any{
+						"on":  "hello",
+						"off": "world",
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{
+				"string-flag": {
+					Key:       "string-flag",
+					Source:    source,
+					Priority:  0,
+					FlagSetId: nilFlagSetId,
+					FlagType:  "string",
+					Variants: map[string]any{
+						"on":  "hello",
+						"off": "world",
+					},
+					DefaultVariant: "on",
+				},
+			},
+		},
+		{
+			name: "invalid string flag",
+			newFlags: map[string]model.Flag{
+				"invalid-string-flag": {
+					FlagType: "string",
+					Variants: map[string]any{
+						"on":  123,
+						"off": "world",
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{},
+		},
+		{
+			name: "valid integer flag",
+			newFlags: map[string]model.Flag{
+				"integer-flag": {
+					FlagType: "integer",
+					Variants: map[string]any{
+						"on":  123,
+						"off": 456,
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{
+				"integer-flag": {
+					Key:       "integer-flag",
+					Source:    source,
+					Priority:  0,
+					FlagSetId: nilFlagSetId,
+					FlagType:  "integer",
+					Variants: map[string]any{
+						"on":  123,
+						"off": 456,
+					},
+					DefaultVariant: "on",
+				},
+			},
+		},
+		{
+			name: "invalid integer flag",
+			newFlags: map[string]model.Flag{
+				"invalid-integer-flag": {
+					FlagType: "integer",
+					Variants: map[string]any{
+						"on":  123.45,
+						"off": 456,
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{},
+		},
+		{
+			name: "valid float flag",
+			newFlags: map[string]model.Flag{
+				"float-flag": {
+					FlagType: "float",
+					Variants: map[string]any{
+						"on":  123.45,
+						"off": 456.78,
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{
+				"float-flag": {
+					Key:       "float-flag",
+					Source:    source,
+					Priority:  0,
+					FlagSetId: nilFlagSetId,
+					FlagType:  "float",
+					Variants: map[string]any{
+						"on":  123.45,
+						"off": 456.78,
+					},
+					DefaultVariant: "on",
+				},
+			},
+		},
+		{
+			name: "invalid float flag",
+			newFlags: map[string]model.Flag{
+				"invalid-float-flag": {
+					FlagType: "float",
+					Variants: map[string]any{
+						"on":  "123.45",
+						"off": 456.78,
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{},
+		},
+		{
+			name: "valid object flag",
+			newFlags: map[string]model.Flag{
+				"object-flag": {
+					FlagType: "object",
+					Variants: map[string]any{
+						"on":  map[string]any{"foo": "bar"},
+						"off": map[string]any{"baz": "qux"},
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{
+				"object-flag": {
+					Key:       "object-flag",
+					Source:    source,
+					Priority:  0,
+					FlagSetId: nilFlagSetId,
+					FlagType:  "object",
+					Variants: map[string]any{
+						"on":  map[string]any{"foo": "bar"},
+						"off": map[string]any{"baz": "qux"},
+					},
+					DefaultVariant: "on",
+				},
+			},
+		},
+		{
+			name: "different variants valid flag - backwards compatibility test",
+			newFlags: map[string]model.Flag{
+				"object-flag": {
+					//FlagdType is empty to test backwards compatibility
+					Variants: map[string]any{
+						"on":  "foo",
+						"off": true,
+					},
+					DefaultVariant: "on",
+				},
+			},
+			wantFlags: map[string]model.Flag{
+				"object-flag": {
+					Key:       "object-flag",
+					Source:    source,
+					Priority:  0,
+					FlagSetId: nilFlagSetId,
+					FlagType:  "",
+					Variants: map[string]any{
+						"on":  "foo",
+						"off": true,
+					},
+					DefaultVariant: "on",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			store, err := NewStore(logger.NewLogger(nil, false), sources)
+			if err != nil {
+				t.Fatalf("NewStore failed: %v", err)
+			}
+			store.Update(source, tt.newFlags, nil)
+			gotFlags, _, _ := store.GetAll(context.Background(), nil)
+
+			require.Equal(t, tt.wantFlags, gotFlags)
+		})
+	}
+}

@@ -1623,4 +1623,34 @@ func TestTargetingVariantBehavior(t *testing.T) {
 			t.Fatal("did not map to stringified boolean")
 		}
 	})
+
+	t.Run("mismatch type resolution", func(t *testing.T) {
+		evaluator := evaluator.NewJSON(logger.NewLogger(nil, false), store.NewFlags())
+
+		//nolint:dupword
+		_, _, err := evaluator.SetState(sync.DataSync{Source: "testSource", FlagData: `{
+			"flags": {
+				"mismatch-type": {
+					"state": "ENABLED",
+					"flagType": "boolean",
+					"variants": {
+						"false": 1,
+						"true": 2
+					},
+					"defaultVariant": "false",
+					"targeting": {
+						"if": [ true, true, false]
+					}
+				}
+			}
+		}`})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, _, _, _, err = evaluator.ResolveBooleanValue(context.Background(), "default", "mismatch-type", nil)
+		if err == nil {
+			t.Fatal("mismatch type did not result in error")
+		}
+	})
 }

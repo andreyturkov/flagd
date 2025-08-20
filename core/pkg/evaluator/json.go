@@ -171,16 +171,20 @@ func (je *Resolver) ResolveAllValues(ctx context.Context, reqID string, context 
 			continue
 		}
 
-		defaultValue := flag.Variants[flag.DefaultVariant]
-		switch defaultValue.(type) {
-		case bool:
+		switch flag.FlagType {
+		case "boolean":
 			value, variant, reason, metadata, err = resolve[bool](ctx, reqID, flagKey, context, je.evaluateVariant)
-		case string:
+		case "string":
 			value, variant, reason, metadata, err = resolve[string](ctx, reqID, flagKey, context, je.evaluateVariant)
-		case float64:
+		case "float":
 			value, variant, reason, metadata, err = resolve[float64](ctx, reqID, flagKey, context, je.evaluateVariant)
-		case map[string]any:
+		case "integer":
+			value, variant, reason, metadata, err = resolve[float64](ctx, reqID, flagKey, context, je.evaluateVariant)
+		case "":
+		case "object":
 			value, variant, reason, metadata, err = resolve[map[string]any](ctx, reqID, flagKey, context, je.evaluateVariant)
+		default:
+			err = fmt.Errorf("unrecognized flag type: %s for flag: %s", flag.FlagType, flagKey)
 		}
 		if err != nil {
 			je.Logger.ErrorWithID(reqID, fmt.Sprintf("bulk evaluation: key: %s returned error: %s", flagKey, err.Error()))
@@ -288,6 +292,37 @@ func resolve[T constraints](ctx context.Context, reqID string, key string, conte
 	variantEval variantEvaluator) (value T, variant string, reason string, metadata map[string]interface{}, err error,
 ) {
 	variant, variants, reason, metadata, err := variantEval(ctx, reqID, key, context)
+	if err != nil {
+		return value, variant, reason, metadata, err
+	}
+
+	// check flag type
+	if flag, ok := metadata["flagd.flagKey"].(model.Flag); ok {
+		switch flag.FlagType {
+		case "boolean":
+			if _, ok := any(value).(bool); !ok {
+				return value, variant, model.ErrorReason, metadata, errors.New(model.TypeMismatchErrorCode)
+			}
+		case "string":
+			if _, ok := any(value).(string); !ok {
+				return value, variant, model.ErrorReason, metadata, errors.New(model.TypeMismatchErrorCode)
+			}
+		case "integer":
+			if _, ok := any(value).(float64); !ok {
+				return value, variant, model.ErrorReason, metadata, errors.New(model.TypeMismatchErrorCode)
+			}
+		case "float":
+			if _, ok := any(value).(float64); !ok {
+				return value, variant, model.ErrorReason, metadata, errors.New(model.TypeMismatchErrorCode)
+			}
+		case "":
+		case "object":
+			// can be any type, so it doesn't require any validation
+		default:
+			err = fmt.Errorf("unrecognized flag type: %s for flag: %s", flag.FlagType, flag.Key)
+		}
+	}
+
 	if err != nil {
 		return value, variant, reason, metadata, err
 	}

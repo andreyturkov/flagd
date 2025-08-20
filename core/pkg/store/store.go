@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"sync"
 
@@ -279,6 +280,13 @@ func (s *Store) Update(
 	for key, newFlag := range flags {
 		s.logger.Debug(fmt.Sprintf("got metadata %v", metadata))
 
+		// validate flag type
+		if err := validateFlagType(newFlag); err != nil {
+			s.logger.Error(fmt.Sprintf("invalid flag %s: %v", key, err))
+			delete(flags, key)
+			continue
+		}
+
 		newFlag.Key = key
 		newFlag.Source = source
 		newFlag.Priority = priority
@@ -393,4 +401,44 @@ func patchMetadata(original, patch model.Metadata) model.Metadata {
 		patched[key] = value
 	}
 	return patched
+}
+
+func validateFlagType(flag model.Flag) error {
+
+	for variant, value := range flag.Variants {
+		if value == nil {
+			continue
+		}
+
+		vt := reflect.TypeOf(value)
+
+		switch flag.FlagType {
+		case "boolean":
+			if vt.Kind() != reflect.Bool {
+				return fmt.Errorf("variant %s is not a boolean", variant)
+			}
+		case "string":
+			if vt.Kind() != reflect.String {
+				return fmt.Errorf("variant %s is not a string", variant)
+			}
+		case "integer":
+			if vt.Kind() != reflect.Int && vt.Kind() != reflect.Float64 {
+				return fmt.Errorf("variant %s is not an integer", variant)
+			}
+			if vt.Kind() == reflect.Float64 && value.(float64) != float64(int(value.(float64))) {
+				return fmt.Errorf("variant %s is not an integer", variant)
+			}
+		case "float":
+			if vt.Kind() != reflect.Float64 {
+				return fmt.Errorf("variant %s is not a float", variant)
+			}
+		case "": // empty string is treat the flag 'object' to support backwards compatibility
+		case "object":
+			return nil // can be any type, so it doesn't require any validation
+		default:
+			return fmt.Errorf("unknown flag type: %s", flag.FlagType)
+		}
+	}
+
+	return nil
 }
